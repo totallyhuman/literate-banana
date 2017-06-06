@@ -1,2 +1,2 @@
-# literate-potato
+# literate-banana
 A Euphoria bot library (?)
