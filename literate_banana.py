@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import websocket as ws
+"""
+literate_banana
+
+A Euphoria (euphoria.io) bot library (?)
+"""
+
 import json
+import websocket as ws
 
 
 class Bot(object):
@@ -15,7 +21,7 @@ class Bot(object):
                 'type': 'nick',
                 'data': {
                     'name': nick
-                 }
+                }
             }))
 
 
@@ -26,5 +32,5 @@ class Bot(object):
                 'data': {
                     'content': message,
                     'parent': parent
-                 }
+                }
             }))
