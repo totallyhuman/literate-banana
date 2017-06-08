@@ -39,6 +39,9 @@ class Bot(object):
         else:
             self.specific_ping = 'Pong!'
 
+        if 'regexes' in kwargs:
+            self.regexes = kwargs['regexes']
+
         self.session = ws.create_connection(
             'wss://euphoria.io/room/{}/ws'.format(self.room))
 
@@ -67,6 +70,15 @@ class Bot(object):
         self.session.close()
 
 
+    def log(self, mode, message):
+        if mode == 'send':
+            print('[{0}] Sent message: {1!r}'.format(
+                self.nick, message).encode('utf-8'))
+        elif mode == 'receive':
+            print('[{0}] Received trigger message: {1!r}'.format(
+                self.nick, message).encode('utf-8'))
+
+
     def receive(self):
         incoming = json.loads(self.session.recv())
 
@@ -80,18 +92,33 @@ class Bot(object):
                 }))
         elif incoming['type'] == 'send-reply':
             self.last_message = incoming
+            self.log('send', incoming['data']['content'])
         elif incoming['type'] == 'send-event':
-            if re.match(r'!ping', incoming['data']['content']):
+            if re.match(r'\s*!ping\s*$', incoming['data']['content']):
+                self.log('receive', incoming['data']['content'])
                 self.post(self.generic_ping, incoming['data']['id'])
-            elif re.match(r'!ping\s+@?{}'.format(self.nick),
+            elif re.match(r'\s*!ping\s+@?{}\s*$'.format(self.nick),
                           incoming['data']['content']):
+                self.log('receive', incoming['data']['content'])
                 self.post(self.specific_ping, incoming['data']['id'])
-            elif re.match(r'!help', incoming['data']['content']):
+            elif re.match(r'\s*!help\s*$', incoming['data']['content']):
+                self.log('receive', incoming['data']['content'])
                 self.post(self.short_help, incoming['data']['id'])
-            elif re.match(r'!help\s+@?{}'.format(self.nick),
+            elif re.match(r'\s*!help\s+@?{}\s*$'.format(self.nick),
                           incoming['data']['content']):
+                self.log('receive', incoming['data']['content'])
                 self.post(self.long_help, incoming['data']['id'])
-            elif re.match(r'!kill\s+@?{}'.format(self.nick),
+            elif re.match(r'\s*!kill\s+@?{}\s*$'.format(self.nick),
                           incoming['data']['content']):
+                self.log('receive', incoming['data']['content'])
                 self.post('/me is now exiting.', incoming['data']['id'])
                 self.kill()
+
+            for regex, response in self.regexes.items():
+                if re.match(regex, incoming['data']['content']):
+                    self.log('receive', incoming['data']['content'])
+                    result = response(
+                        re.match(regex, incoming['data']['content']).groups())
+
+                    if result:
+                        self.post(result, incoming['data']['id'])
