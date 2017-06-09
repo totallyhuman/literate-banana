@@ -2,13 +2,14 @@
 # -*- coding: utf-8 -*-
 
 """
-literate_banana
+Literate Banana
 
 A Euphoria (euphoria.io) bot library.
 """
 
 import json
 import re
+import time
 import websocket as ws
 
 
@@ -17,30 +18,14 @@ class Bot(object):
     def __init__(self, room, nick, **kwargs):
         self.nick = nick
         self.room = room
+        self.start_time = time.time()
         self.last_message = None
 
-        if 'short_help' in kwargs:
-            self.short_help = kwargs['short_help']
-        else:
-            self.short_help = None
-
-        if 'long_help' in kwargs:
-            self.long_help = kwargs['long_help']
-        else:
-            self.short_help = None
-
-        if 'generic_ping' in kwargs:
-            self.generic_ping = kwargs['generic_ping']
-        else:
-            self.generic_ping = 'Pong!'
-
-        if 'specific_ping' in kwargs:
-            self.specific_ping = kwargs['specific_ping']
-        else:
-            self.specific_ping = 'Pong!'
-
-        if 'regexes' in kwargs:
-            self.regexes = kwargs['regexes']
+        self.short_help = kwargs.get('short_help', None)
+        self.long_help = kwargs.get('short_help', None)
+        self.generic_ping = kwargs.get('generic_ping', None)
+        self.specific_ping = kwargs.get('specific_ping', None)
+        self.regexes = kwargs.get('regexes', {})
 
         self.session = ws.create_connection(
             'wss://euphoria.io/room/{}/ws'.format(self.room))
@@ -53,7 +38,6 @@ class Bot(object):
                 }
             }))
 
-
     def post(self, message, parent = ''):
         if message:
             self.session.send(
@@ -65,10 +49,38 @@ class Bot(object):
                     }
                 }))
 
+    def uptime(self):
+        start = time.gmtime(self.start_time)
+        start_time = (
+            '{0:04d}-{1:02d}-{2:02d} {3:02d}:{4:02d}:{5:02d} UTC'.format(
+                start.tm_year, start.tm_mon, start.tm_mday, start.tm_hour,
+                start.tm_min, start.tm_sec))
+        delta = self.format_delta(time.time() - self.start_time)
+
+        return '/me has been up since {0} ({1})'.format(start_time, delta)
+
+    @staticmethod
+    def format_delta(seconds):
+        result = ''
+
+        if seconds >= 86400:
+            result += '{:.0f}d '.format(seconds / 86400)
+            seconds %= 86400
+        if seconds >= 3600:
+            result += '{:.0f}h '.format(seconds / 3600)
+            seconds %= 3600
+        if seconds >= 60:
+            result += '{:.0f}m '.format(seconds / 60)
+            seconds %= 60
+        if seconds != 0:
+            result += '{:.2f}s '.format(seconds)
+        if seconds == 0:
+            result += '0s '
+
+        return result[:-1]
 
     def kill(self):
         self.session.close()
-
 
     def log(self, mode, message):
         if mode == 'send':
@@ -77,7 +89,6 @@ class Bot(object):
         elif mode == 'receive':
             print('[{0}] Received trigger message: {1!r}'.format(
                 self.nick, message).encode('utf-8'))
-
 
     def receive(self):
         incoming = json.loads(self.session.recv())
@@ -90,24 +101,35 @@ class Bot(object):
                         'time': incoming['data']['time']
                     }
                 }))
+
         elif incoming['type'] == 'send-reply':
             self.last_message = incoming
             self.log('send', incoming['data']['content'])
+
         elif incoming['type'] == 'send-event':
             if re.match(r'\s*!ping\s*$', incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
                 self.post(self.generic_ping, incoming['data']['id'])
+
             elif re.match(r'\s*!ping\s+@?{}\s*$'.format(self.nick),
                           incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
                 self.post(self.specific_ping, incoming['data']['id'])
+
             elif re.match(r'\s*!help\s*$', incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
                 self.post(self.short_help, incoming['data']['id'])
+
             elif re.match(r'\s*!help\s+@?{}\s*$'.format(self.nick),
                           incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
                 self.post(self.long_help, incoming['data']['id'])
+
+            elif re.match(r'\s*!uptime\s+@?{}\s*$'.format(self.nick),
+                          incoming['data']['content']):
+                self.log('receive', incoming['data']['content'])
+                self.post(self.uptime(), incoming['data']['id'])
+
             elif re.match(r'\s*!kill\s+@?{}\s*$'.format(self.nick),
                           incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
