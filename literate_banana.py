@@ -94,19 +94,22 @@ class Bot(object):
 
             self.log('send', message)
 
-
     def uptime(self):
         """Returns the uptime (the amount of time since the start of the
         bot)."""
 
-        start = time.gmtime(self.start_time)
-        start_time = (
-            '{0:04d}-{1:02d}-{2:02d} {3:02d}:{4:02d}:{5:02d} UTC'.format(
-                start.tm_year, start.tm_mon, start.tm_mday, start.tm_hour,
-                start.tm_min, start.tm_sec))
         delta = self.format_delta(time.time() - self.start_time)
 
-        return '/me has been up since {0} ({1})'.format(start_time, delta)
+        return '/me has been up since {0} ({1})'.format(
+            self.format_time(self.start_time), delta)
+
+    @staticmethod
+    def format_time(seconds):
+        struct = time.gmtime(seconds)
+
+        return '{0:04d}-{1:02d}-{2:02d} {3:02d}:{4:02d}:{5:02d} UTC'.format(
+            struct.tm_year, struct.tm_mon, struct.tm_mday, struct.tm_hour,
+            struct.tm_min, struct.tm_sec)
 
     @staticmethod
     def format_delta(seconds):
@@ -143,22 +146,24 @@ class Bot(object):
                               (default: None)
         """
 
+        current_time = self.format_time(time.time())
+
         if mode == 'connect':
             print(
-                repr('[{0}] Connected to &{1}.'.format(self.nick, self.room)
-                     .encode('utf-8'))[2:-1])
+                repr('[{0}][{1}] Connected to &{2}.'.format(
+                    current_time, self.nick, self.room).encode('utf-8'))[2:-1])
         elif mode == 'send':
             print(
-                repr('[{0}] Sent message: {1!r}'.format(self.nick, message)
-                     .encode('utf-8'))[2:-1])
+                repr('[{0}][{1}] Sent message: {2!r}'.format(
+                    current_time, self.nick, message).encode('utf-8'))[2:-1])
         elif mode == 'receive':
             print(
-                repr('[{0}] Received trigger message: {1!r}'.format(
-                    self.nick, message).encode('utf-8'))[2:-1])
+                repr('[{0}][{1}] Received trigger message: {2!r}'.format(
+                    current_time, self.nick, message).encode('utf-8'))[2:-1])
         elif mode == 'disconnect':
             print(
-                repr('[{0}] Disconnected from &{1}.'.format(
-                    self.nick, self.room).encode('utf-8'))[2:-1])
+                repr('[{0}][{1}] Disconnected from &{2}.'.format(
+                    current_time, self.nick, self.room).encode('utf-8'))[2:-1])
 
     def receive(self):
         """Function that recieves packets from Euphoria and employs the
@@ -216,8 +221,9 @@ class Bot(object):
                 self.post('/me has been paused.', incoming['data']['id'])
                 self.pause = True
 
-            elif re.search(r'(?i)^\s*!(unpause|restore)\s+@?{}\s*$'.format(
-                    self.nick), incoming['data']['content']):
+            elif re.search(
+                    r'(?i)^\s*!(unpause|restore)\s+@?{}\s*$'.format(self.nick),
+                    incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
                 self.post('/me has been restored.', incoming['data']['id'])
                 self.pause = False
