@@ -4,7 +4,7 @@
 """
 nick
 
-Example bot using the literate_banana library.
+Example bot using the Literate Banana library.
 """
 
 from literate_banana import Bot

@@ -19,10 +19,11 @@ class Bot(object):
         self.nick = nick
         self.room = room
         self.start_time = time.time()
+        self.pause = False
         self.last_message = None
 
         self.short_help = kwargs.get('short_help', None)
-        self.long_help = kwargs.get('short_help', None)
+        self.long_help = kwargs.get('long_help', None)
         self.generic_ping = kwargs.get('generic_ping', None)
         self.specific_ping = kwargs.get('specific_ping', None)
         self.regexes = kwargs.get('regexes', {})
@@ -79,16 +80,13 @@ class Bot(object):
 
         return result[:-1]
 
-    def kill(self):
-        self.session.close()
-
     def log(self, mode, message):
         if mode == 'send':
-            print('[{0}] Sent message: {1!r}'.format(
-                self.nick, message).encode('utf-8'))
+            print(repr('[{0}] Sent message: {1!r}'.format(
+                self.nick, message).encode('utf-8'))[2:-1])
         elif mode == 'receive':
-            print('[{0}] Received trigger message: {1!r}'.format(
-                self.nick, message).encode('utf-8'))
+            print(repr('[{0}] Received trigger message: {1!r}'.format(
+                self.nick, message).encode('utf-8'))[2:-1])
 
     def receive(self):
         incoming = json.loads(self.session.recv())
@@ -107,6 +105,11 @@ class Bot(object):
             self.log('send', incoming['data']['content'])
 
         elif incoming['type'] == 'send-event':
+            if self.pause and not re.match(
+                    r'\s*!(unpause|restore)\s+@?{}\s*$'.format(self.nick),
+                    incoming['data']['content']):
+                return
+
             if re.match(r'\s*!ping\s*$', incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
                 self.post(self.generic_ping, incoming['data']['id'])
@@ -130,11 +133,23 @@ class Bot(object):
                 self.log('receive', incoming['data']['content'])
                 self.post(self.uptime(), incoming['data']['id'])
 
+            elif re.match(r'\s*!pause\s+@?{}\s*$'.format(self.nick),
+                          incoming['data']['content']):
+                self.log('receive', incoming['data']['content'])
+                self.post('/me has been paused.', incoming['data']['id'])
+                self.pause = True
+
+            elif re.match(r'\s*!(unpause|restore)\s+@?{}\s*$'.format(self.nick),
+                          incoming['data']['content']):
+                self.log('receive', incoming['data']['content'])
+                self.post('/me has been restored.', incoming['data']['id'])
+                self.pause = False
+
             elif re.match(r'\s*!kill\s+@?{}\s*$'.format(self.nick),
                           incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
                 self.post('/me is now exiting.', incoming['data']['id'])
-                self.kill()
+                self.session.close()
 
             for regex, response in self.regexes.items():
                 if re.match(regex, incoming['data']['content']):
