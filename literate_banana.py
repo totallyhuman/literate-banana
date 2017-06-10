@@ -24,12 +24,13 @@ class Bot(object):
 
         self.short_help = kwargs.get('short_help', None)
         self.long_help = kwargs.get('long_help', None)
-        self.generic_ping = kwargs.get('generic_ping', None)
-        self.specific_ping = kwargs.get('specific_ping', None)
+        self.generic_ping = kwargs.get('generic_ping', 'Ping!')
+        self.specific_ping = kwargs.get('specific_ping', 'Ping!')
         self.regexes = kwargs.get('regexes', {})
 
         self.session = ws.create_connection(
             'wss://euphoria.io/room/{}/ws'.format(self.room))
+        self.log('connect')
 
         self.session.send(
             json.dumps({
@@ -49,6 +50,8 @@ class Bot(object):
                         'parent': parent
                     }
                 }))
+
+        self.log('send', message)
 
     def uptime(self):
         start = time.gmtime(self.start_time)
@@ -80,16 +83,25 @@ class Bot(object):
 
         return result[:-1]
 
-    def log(self, mode, message):
-        if mode == 'send':
+    def log(self, mode, message = None):
+        if mode == 'connect':
+            print(repr('[{0}] Connected to &{1}.'.format(
+                self.nick, self.room).encode('utf-8'))[2:-1])
+        elif mode == 'send':
             print(repr('[{0}] Sent message: {1!r}'.format(
                 self.nick, message).encode('utf-8'))[2:-1])
         elif mode == 'receive':
             print(repr('[{0}] Received trigger message: {1!r}'.format(
                 self.nick, message).encode('utf-8'))[2:-1])
+        elif mode == 'disconnect':
+            print(repr('[{0}] Disconnected from &{1}.'.format(
+                self.nick, self.room).encode('utf-8'))[2:-1])
 
     def receive(self):
-        incoming = json.loads(self.session.recv())
+        try:
+            incoming = json.loads(self.session.recv())
+        except ws._exceptions.WebSocketConnectionClosedException:
+            exit()
 
         if incoming['type'] == 'ping-event':
             self.session.send(
@@ -102,7 +114,6 @@ class Bot(object):
 
         elif incoming['type'] == 'send-reply':
             self.last_message = incoming
-            self.log('send', incoming['data']['content'])
 
         elif incoming['type'] == 'send-event':
             if self.pause and not re.match(
