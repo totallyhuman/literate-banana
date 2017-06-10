@@ -14,8 +14,42 @@ import websocket as ws
 
 
 class Bot(object):
+    """A connection to Euphoria.
 
-    def __init__(self, room, nick, **kwargs):
+    Bots can send and receive messages as well as other types of packets as
+    well.
+
+    Positional arguments:
+        nick (str): the nickname the bot will take
+        room (str): the room the bot will connect to
+
+    Keyword arguments:
+        short_help (str): the message returned on '!help' (default: None)
+        long_help (str): the message returned on '!help @BotName'
+                         (default: None)
+        generic_ping (str): the message returned on '!ping' (default: 'Pong!')
+        specific_ping (str): the message returned on '!ping @BotName'
+                             (default: 'Pong!')
+        regexes (dict): regexes and responses to execute based on them
+                        (default: {})
+
+    Attributes:
+        nick (str): the nickname of the bot
+        room (str): the room the bot is connected to
+        start_time (float): the time the bot started in seconds since the epoch
+        pause (bool): whether the bot has been paused or not
+        last_message (dict): JSON packet of the bot's last message sent
+        short_help (str): the message returned on '!help'
+        long_help (str): the message returned on '!help @BotName'
+        generic_ping (str): the message returned on '!ping'
+        specific_ping (str): the message returned on '!ping @BotName'
+        regexes (dict): regexes and responses to execute based on them
+        session (websocket.Websocket): the connection to Euphoria
+    """
+
+    def __init__(self, nick, room, **kwargs):
+        """See class docstring for details."""
+
         self.nick = nick
         self.room = room
         self.start_time = time.time()
@@ -28,8 +62,8 @@ class Bot(object):
         self.specific_ping = kwargs.get('specific_ping', 'Ping!')
         self.regexes = kwargs.get('regexes', {})
 
-        self.session = ws.create_connection(
-            'wss://euphoria.io/room/{}/ws'.format(self.room))
+        self.session = ws.WebSocket()
+        self.session.connect('wss://euphoria.io/room/{}/ws'.format(self.room))
         self.log('connect')
 
         self.session.send(
@@ -41,6 +75,13 @@ class Bot(object):
             }))
 
     def post(self, message, parent = ''):
+        """Posts a message in the room.
+
+        Arguments:
+            message (str): the content of the message
+            parent (str): the id of the message to reply to (default: '')
+        """
+
         if message:
             self.session.send(
                 json.dumps({
@@ -54,6 +95,9 @@ class Bot(object):
         self.log('send', message)
 
     def uptime(self):
+        """Returns the uptime (the amount of time since the start of the
+        bot)."""
+
         start = time.gmtime(self.start_time)
         start_time = (
             '{0:04d}-{1:02d}-{2:02d} {3:02d}:{4:02d}:{5:02d} UTC'.format(
@@ -65,6 +109,12 @@ class Bot(object):
 
     @staticmethod
     def format_delta(seconds):
+        """Formats a time difference into '[XXd ][XXh ][XXm ][XX.XXs]'.
+
+        Arguments:
+            seconds (float): seconds to be converted to the delta
+        """
+
         result = ''
 
         if seconds >= 86400:
@@ -84,23 +134,38 @@ class Bot(object):
         return result[:-1]
 
     def log(self, mode, message = None):
+        """Log events to the terminal.
+
+        Arguments:
+            mode (str): the type of event to be logged
+            message (<type>): the message, only if sent or received
+                              (default: None)
+        """
+
         if mode == 'connect':
-            print(repr('[{0}] Connected to &{1}.'.format(
-                self.nick, self.room).encode('utf-8'))[2:-1])
+            print(
+                repr('[{0}] Connected to &{1}.'.format(self.nick, self.room)
+                     .encode('utf-8'))[2:-1])
         elif mode == 'send':
-            print(repr('[{0}] Sent message: {1!r}'.format(
-                self.nick, message).encode('utf-8'))[2:-1])
+            print(
+                repr('[{0}] Sent message: {1!r}'.format(self.nick, message)
+                     .encode('utf-8'))[2:-1])
         elif mode == 'receive':
-            print(repr('[{0}] Received trigger message: {1!r}'.format(
-                self.nick, message).encode('utf-8'))[2:-1])
+            print(
+                repr('[{0}] Received trigger message: {1!r}'.format(
+                    self.nick, message).encode('utf-8'))[2:-1])
         elif mode == 'disconnect':
-            print(repr('[{0}] Disconnected from &{1}.'.format(
-                self.nick, self.room).encode('utf-8'))[2:-1])
+            print(
+                repr('[{0}] Disconnected from &{1}.'.format(
+                    self.nick, self.room).encode('utf-8'))[2:-1])
 
     def receive(self):
-        try:
+        """Function that recieves packets from Euphoria and employs the
+        botrulez and the regexes specified."""
+
+        if self.session.connected:
             incoming = json.loads(self.session.recv())
-        except ws._exceptions.WebSocketConnectionClosedException:
+        else:
             exit()
 
         if incoming['type'] == 'ping-event':
@@ -150,8 +215,8 @@ class Bot(object):
                 self.post('/me has been paused.', incoming['data']['id'])
                 self.pause = True
 
-            elif re.match(r'\s*!(unpause|restore)\s+@?{}\s*$'.format(self.nick),
-                          incoming['data']['content']):
+            elif re.match(r'\s*!(unpause|restore)\s+@?{}\s*$'.format(
+                    self.nick), incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
                 self.post('/me has been restored.', incoming['data']['id'])
                 self.pause = False
@@ -161,6 +226,7 @@ class Bot(object):
                 self.log('receive', incoming['data']['content'])
                 self.post('/me is now exiting.', incoming['data']['id'])
                 self.session.close()
+                self.log('disconnect')
 
             for regex, response in self.regexes.items():
                 if re.match(regex, incoming['data']['content']):

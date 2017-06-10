@@ -10,8 +10,8 @@ Example bot using the Literate Banana library.
 from literate_banana import Bot
 
 bot = Bot(
-    'test',
     'nick',
+    'test',
     short_help = 'This is a short help message.',
     long_help = 'This is a not very long help message.',
     generic_ping = 'This is a generic ping reply.',
