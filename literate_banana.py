@@ -92,7 +92,8 @@ class Bot(object):
                     }
                 }))
 
-        self.log('send', message)
+            self.log('send', message)
+
 
     def uptime(self):
         """Returns the uptime (the amount of time since the start of the
@@ -181,58 +182,57 @@ class Bot(object):
             self.last_message = incoming
 
         elif incoming['type'] == 'send-event':
-            if self.pause and not re.match(
-                    r'\s*!(unpause|restore)\s+@?{}\s*$'.format(self.nick),
+            if self.pause and not re.search(
+                    r'(?i)^\s*!(unpause|restore)\s+@?{}\s*$'.format(self.nick),
                     incoming['data']['content']):
                 return
 
-            if re.match(r'\s*!ping\s*$', incoming['data']['content']):
+            if re.search(r'(?i)^\s*!ping\s*$', incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
                 self.post(self.generic_ping, incoming['data']['id'])
 
-            elif re.match(r'\s*!ping\s+@?{}\s*$'.format(self.nick),
-                          incoming['data']['content']):
+            elif re.search(r'(?i)^\s*!ping\s+@?{}\s*$'.format(self.nick),
+                           incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
                 self.post(self.specific_ping, incoming['data']['id'])
 
-            elif re.match(r'\s*!help\s*$', incoming['data']['content']):
+            elif re.search(r'(?i)^\s*!help\s*$', incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
                 self.post(self.short_help, incoming['data']['id'])
 
-            elif re.match(r'\s*!help\s+@?{}\s*$'.format(self.nick),
-                          incoming['data']['content']):
+            elif re.search(r'(?i)^\s*!help\s+@?{}\s*$'.format(self.nick),
+                           incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
                 self.post(self.long_help, incoming['data']['id'])
 
-            elif re.match(r'\s*!uptime\s+@?{}\s*$'.format(self.nick),
-                          incoming['data']['content']):
+            elif re.search(r'(?i)^\s*!uptime\s+@?{}\s*$'.format(self.nick),
+                           incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
                 self.post(self.uptime(), incoming['data']['id'])
 
-            elif re.match(r'\s*!pause\s+@?{}\s*$'.format(self.nick),
-                          incoming['data']['content']):
+            elif re.search(r'(?i)^\s*!pause\s+@?{}\s*$'.format(self.nick),
+                           incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
                 self.post('/me has been paused.', incoming['data']['id'])
                 self.pause = True
 
-            elif re.match(r'\s*!(unpause|restore)\s+@?{}\s*$'.format(
+            elif re.search(r'(?i)^\s*!(unpause|restore)\s+@?{}\s*$'.format(
                     self.nick), incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
                 self.post('/me has been restored.', incoming['data']['id'])
                 self.pause = False
 
-            elif re.match(r'\s*!kill\s+@?{}\s*$'.format(self.nick),
-                          incoming['data']['content']):
+            elif re.search(r'(?i)^\s*!kill\s+@?{}\s*$'.format(self.nick),
+                           incoming['data']['content']):
                 self.log('receive', incoming['data']['content'])
                 self.post('/me is now exiting.', incoming['data']['id'])
                 self.session.close()
                 self.log('disconnect')
 
             for regex, response in self.regexes.items():
-                if re.match(regex, incoming['data']['content']):
+                if re.search(regex, incoming['data']['content']):
                     self.log('receive', incoming['data']['content'])
-                    result = response(
-                        re.match(regex, incoming['data']['content']).groups())
-
-                    if result:
-                        self.post(result, incoming['data']['id'])
+                    self.post(
+                        response(
+                            re.search(regex, incoming['data']['content'])
+                            .groups()), incoming['data']['id'])
