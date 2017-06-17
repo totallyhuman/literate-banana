@@ -5,6 +5,9 @@
 Literate Banana
 
 A Euphoria (euphoria.io) bot library.
+
+Sumant Bhaskaruni
+v1.0.0
 """
 
 import json
@@ -104,7 +107,17 @@ class Bot(object):
             self.format_time(self.start_time), delta)
 
     @staticmethod
+    def mention(nick):
+        return '@' + re.sub(r' ', '', nick)
+
+    @staticmethod
     def format_time(seconds):
+        """Formats an amount of seconds into a timestamp.
+
+        Arguments:
+            seconds (float): seconds to be converted to the returned timestamp
+        """
+
         struct = time.gmtime(seconds)
 
         return '{0:04d}-{1:02d}-{2:02d} {3:02d}:{4:02d}:{5:02d} UTC'.format(
@@ -116,7 +129,7 @@ class Bot(object):
         """Formats a time difference into '[XXd ][XXh ][XXm ][XX.XXs]'.
 
         Arguments:
-            seconds (float): seconds to be converted to the delta
+            seconds (float): seconds to be converted to the returned delta
         """
 
         result = ''
@@ -172,6 +185,7 @@ class Bot(object):
         if self.session.connected:
             incoming = json.loads(self.session.recv())
         else:
+            self.log('disconnect')
             exit()
 
         if incoming['type'] == 'ping-event':
@@ -188,8 +202,14 @@ class Bot(object):
 
         elif incoming['type'] == 'send-event':
             if self.pause and not re.search(
-                    r'(?i)^\s*!(unpause|restore)\s+@?{}\s*$'.format(self.nick),
-                    incoming['data']['content']):
+                    r'(?i)^\s*!(unpause|restore|kill)\s+@?{}\s*$'.format(
+                        self.nick), incoming['data']['content']):
+                self.log('receive', incoming['data']['content'])
+                self.post('/me is paused.', incoming['data']['id'])
+                self.post(
+                    ('Type "!restore @{0}" to restore me or "!kill @{0}" to '
+                    + 'kill me.').format(self.nick),
+                    incoming['data']['id'])
                 return
 
             if re.search(r'(?i)^\s*!ping\s*$', incoming['data']['content']):
@@ -233,12 +253,17 @@ class Bot(object):
                 self.log('receive', incoming['data']['content'])
                 self.post('/me is now exiting.', incoming['data']['id'])
                 self.session.close()
-                self.log('disconnect')
 
             for regex, response in self.regexes.items():
                 if re.search(regex, incoming['data']['content']):
                     self.log('receive', incoming['data']['content'])
-                    self.post(
-                        response(
-                            re.search(regex, incoming['data']['content'])
-                            .groups()), incoming['data']['id'])
+
+                    result = response(re.search(
+                        regex, incoming['data']['content']).groups(),
+                        incoming['data'])
+
+                    if isinstance(result, list):
+                        for message in result:
+                            self.post(message, incoming['data']['id'])
+                    else:
+                        self.post(result, incoming['data']['id'])
